@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>哥布林防衛戰</title>
+    <style>
+        body { 
+            text-align: center; 
+            font-family: sans-serif; 
+            background: #2c3e50; 
+            color: white; 
+            
+            /* 【新增】全面禁止文字被滑鼠或手指長按選取 */
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none;    /* Firefox */
+            -ms-user-select: none;     /* IE/Edge */
+            user-select: none;         /* 標準語法 */
+        }
+        #castle { font-size: 28px; color: #e74c3c; font-weight: bold; margin: 10px; }
+        #day-info { font-size: 20px; margin-bottom: 10px; }
+        #game-area {
+          position: relative;
+          width: 95%;       /* 在手機上自動佔滿 95% 畫面，很好點擊 */
+          max-width: 600px; /* 【關鍵】在電腦上，寬度最多只會到 600 像素，不會變太大 */
+          height: 450px;    /* 固定高度，手機和電腦都能完美顯示 */
+          border: 4px solid #fff;
+          margin: 0 auto;
+          background: #34495e;
+          overflow: hidden;
+        }
+        .goblin { 
+            position: absolute; width: 70px; height: 70px; background: #27ae60;
+            border-radius: 50%; cursor: pointer; display: flex; align-items: center; 
+            justify-content: center; font-size: 14px; font-weight: bold; color: white;
+            transition: transform 0.1s; border: 2px solid #fff;
+        }
+        #upgrade-modal {
+            display: none; position: fixed; top: 30%; left: 35%; width: 30%;
+            background: #ecf0f1; color: #2c3e50; padding: 20px; border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>城堡防衛戰</h1>
+    <div id="castle">城堡血量: 1000</div>
+    <div id="day-info">第 1 天 0 小時</div>
+    <div id="game-area"></div>
+
+    <div id="upgrade-modal">
+        <h3>新的一天開始了！請選擇一項升級：</h3>
+        <button onclick="applyUpgrade('health')">增加 200 城堡血量</button>
+        <button onclick="applyUpgrade('power')">增加點擊威力 (當前攻擊力: <span id="power-val">1</span>)</button>
+    </div>
+
+<script>
+    // --- 每日設定檔 ---
+    const dailySettings = [
+        { interval: 600, chances: [0.8, 0.2, 0.0, 0.0] },
+        { interval: 500,  chances: [0.6, 0.3, 0.0, 0.0] },
+        { interval: 500,  chances: [0.5, 0.3, 0.1, 0.00] },
+        { interval: 500,  chances: [0.4, 0.3, 0.1, 0.0] }
+    ];
+
+    let health = 1000;
+    let totalSeconds = 0;
+    let day = 1;
+    let clickPower = 1; 
+    let isPaused = false;
+    const area = document.getElementById('game-area');
+    const castleText = document.getElementById('castle');
+    const dayText = document.getElementById('day-info');
+    const modal = document.getElementById('upgrade-modal');
+
+    // 取得當天設定的輔助函式
+    function getSettings(d) {
+        const index = Math.min(d - 1, dailySettings.length - 1);
+        return dailySettings[index];
+    }
+
+    // 單一且正確的生成邏輯
+    function spawnGoblin() {
+        if (isPaused) return;
+
+        const settings = getSettings(day);
+        
+        let rand = Math.random();
+        let hp = 1;
+        let cumulativeChance = 0;
+        
+        for (let i = 0; i < settings.chances.length; i++) {
+            cumulativeChance += settings.chances[i];
+            if (rand < cumulativeChance) {
+                hp = i + 1;
+                break;
+            }
+        }
+        
+        const goblin = document.createElement('div');
+        goblin.className = 'goblin';
+        goblin.innerText = hp > 1 ? `哥布林(${hp})` : '哥布林';
+        goblin.dataset.hp = hp;
+        
+        goblin.style.left = Math.random() * 85 + '%';
+        goblin.style.top = Math.random() * 80 + '%';
+        
+        goblin.onclick = () => {
+            let currentHp = parseInt(goblin.dataset.hp) - clickPower;
+            if (currentHp <= 0) {
+                goblin.remove();
+            } else {
+                goblin.dataset.hp = currentHp;
+                goblin.innerText = `哥布林(${currentHp})`;
+            }
+        };
+        
+        area.appendChild(goblin);
+        setTimeout(spawnGoblin, settings.interval);
+    }
+
+    function updateClock() {
+        if (isPaused) return;
+        totalSeconds++;
+        
+        if (totalSeconds % 24 === 0) {
+            day = Math.floor(totalSeconds / 24) + 1;
+            showUpgrade();
+        }
+        
+        let hours = totalSeconds % 24;
+        dayText.innerText = `第 ${day} 天 ${hours} 小時`;
+    }
+
+    function showUpgrade() {
+        isPaused = true;
+        document.getElementById('power-val').innerText = clickPower;
+        modal.style.display = 'block';
+    }
+
+    function applyUpgrade(type) {
+        if (type === 'health') health += 200;
+        if (type === 'power') clickPower++;
+        
+        modal.style.display = 'none';
+        isPaused = false;
+        castleText.innerText = `城堡血量: ${health}`;
+        spawnGoblin();
+    }
+
+    setInterval(() => {
+        if (isPaused) return;
+        const goblins = document.querySelectorAll('.goblin');
+        if (goblins.length > 0) {
+            health -= (goblins.length * 1);
+            castleText.innerText = `城堡血量: ${Math.max(0, health)}`;
+        }
+        if (health <= 0) { alert('城堡淪陷了！最終天數：' + day); location.reload(); }
+    }, 100);
+
+    setInterval(updateClock, 1000);
+    spawnGoblin();
+</script>
+</body>
+</html>
